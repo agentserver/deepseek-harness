@@ -12,7 +12,6 @@ import { clientRequestSchema } from './rpc-schema.ts'
 import { bridge } from './http-bridge.ts'
 import { isTrustedApiRequest } from './api-request-trust.ts'
 import { API_PATH } from './api-path.ts'
-import type { BrowserAuth } from './browser-auth.ts'
 import { OperatorPeer } from './operator-peer.ts'
 import type {
   PeerAdmission,
@@ -29,6 +28,7 @@ import type {
   ConnectionTrustRequest,
   HostConnectionHandle,
   HostConnectionRpc,
+  ConnectionAuthentication,
 } from './rpc.ts'
 
 const INVALID_REQUEST_RPC_ID = RpcId('invalid-request')
@@ -70,12 +70,12 @@ export class HostConnectionService extends Service implements HostConnectionHand
    * Provide the Host half over the active HTTP server.
    * @param ctx - owning Connection plugin context.
    * @param trustedHosts - deployment authorities accepted by the Host/Origin fence.
-   * @param browserAuth - process token and persistent browser-session owner.
+   * @param authentication - browser authentication registry.
    */
   constructor(
     ctx: Context,
     private readonly trustedHosts: readonly string[],
-    private readonly browserAuth: BrowserAuth,
+    private readonly authentication: ConnectionAuthentication,
   ) {
     super(ctx, 'connection')
     this.operator = new OperatorPeer(ctx)
@@ -103,7 +103,7 @@ export class HostConnectionService extends Service implements HostConnectionHand
   /** Apply the configured Host/Origin fence, then browser authentication. */
   requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection {
     if (!isTrustedApiRequest(request, this.trustedHosts)) return 403
-    return this.browserAuth.isAuthenticated(request) ? undefined : 401
+    return this.authentication.isAuthenticated(request) ? undefined : 401
   }
 
   /** A request that passes the fence and authentication speaks for the operator. */
@@ -112,14 +112,14 @@ export class HostConnectionService extends Service implements HostConnectionHand
     return rejection === undefined ? { peer: this.operator } : { rejection }
   }
 
-  /** Authenticate an index request through the process-token exchange or cookie. */
+  /** Authenticate an index request through the active browser authenticator. */
   authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean {
-    return this.browserAuth.authorizeIndex(request, response)
+    return this.authentication.authorizeIndex(request, response)
   }
 
-  /** Add this process's launch token to the clean application URL. */
+  /** Build the URL used to start the active browser authentication flow. */
   authenticatedUrl(baseUrl: string): string {
-    return this.browserAuth.authenticatedUrl(baseUrl)
+    return this.authentication.authenticatedUrl(baseUrl)
   }
 
   /**

@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest'
 import { Context, Service, symbols } from '@deepseek-ai/cordis'
 import { z } from 'zod'
 import { apply as applyConnection, inject as connectionInject } from '@deepseek-ai/dsh-client-connection'
+import AuthenticationService from '@agentserver/dsh-authentication'
+import TokenAuthentication from '@agentserver/dsh-authentication-token'
 import type {
   ConnectionRpcHandler,
   HostConnectionHandle,
@@ -1315,6 +1317,8 @@ describe('TypertGatewayService', () => {
     const ctx = new Context().extend({ fixtureScope: 'http-caller' })
     const routes: WebRoute[] = []
     provideBrowserCredentials(ctx)
+    await ctx.plugin(AuthenticationService)
+    await ctx.plugin(TokenAuthentication, { cookieMaxAgeDays: 30 })
     ctx.provide('webServer', fakeHttpServer(routes) as WebServer)
     const connectionFiber = ctx.plugin({ inject: [...connectionInject], apply: applyConnection })
     await connectionFiber

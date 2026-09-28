@@ -436,8 +436,8 @@ export type Config = LocalConfig
 
 ## `@deepseek-ai/dsh-client-connection`
 
-- `inject`: `credentials`
-- `source`: [`packages/client/connection/src/index.ts:92`](../packages/client/connection/src/index.ts)
+- `inject`: `authentication`
+- `source`: [`packages/client/connection/src/index.ts:91`](../packages/client/connection/src/index.ts)
 
 ```ts config-catalog
 /** Browser authentication, request limits, and connection recovery configuration. */
@@ -453,8 +453,6 @@ export interface ConnectionConfig {
    * bind. An entry that is not a bare, canonical authority fails plugin load.
    */
   trustedHosts?: string[]
-  /** Absolute browser-session lifetime in days. Default: 30. */
-  cookieMaxAgeDays?: number
   /** Maximum buffered JSON body for every `/api` request. Default: 300 MiB. */
   maxRequestBodyBytes?: number
 }
@@ -2631,6 +2629,29 @@ export interface Config {
 export type JsonlCompression = 'zstd' | 'none'
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-session-persistence-jsonl -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-session-persistence-pg -->
+<a id="deepseek-aidsh-session-persistence-pg"></a>
+
+## `@deepseek-ai/dsh-session-persistence-pg`
+
+- `inject`: `sessions`
+- `source`: [`packages/session/session-persistence-pg/src/index.ts:24`](../packages/session/session-persistence-pg/src/index.ts)
+
+```ts config-catalog
+/** PostgreSQL provider configuration. */
+export interface Config {
+  /** PostgreSQL connection string. Required; credentials belong to the deployment. */
+  readonly connectionString: string
+  /** Maximum number of pooled connections. @default 10 */
+  readonly maxConnections?: number
+  /** PostgreSQL statement timeout in milliseconds. @default 30000 */
+  readonly statementTimeoutMs?: number
+  /** Schema containing the provider tables. @default dsh */
+  readonly schema?: string
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-session-persistence-pg -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-session-projection-cache -->
 <a id="deepseek-aidsh-session-projection-cache"></a>

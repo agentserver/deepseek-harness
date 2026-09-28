@@ -38,7 +38,7 @@ dsh --profile web
 dsh --profile web --no-open --port 8080
 ```
 
-After startup you see a `dsh web:` line whose root URL carries a fresh process token. Unless `--no-open` or an SSH session suppresses it, the default browser opens that URL, receives a signed cookie, and redirects to the same directory without the token. You know it worked when the page loads and you can chat with the agent. Two failures to expect: if the frontend is not built, startup stops with a build hint (`pnpm run build` in a checkout); if the browser cannot be opened, a credential-free diagnostic prints to stderr while the server keeps running — open the printed startup URL yourself.
+After startup you see a `dsh web:` line whose root URL starts the configured browser authentication flow. The default token provider uses a fresh process token and exchanges it for a signed cookie; enabling `@agentserver/dsh-authentication-oidc` registers an OIDC Authorization Code + PKCE provider beside it. Unless `--no-open` or an SSH session suppresses it, the default browser opens that URL. You know it worked when the page loads and you can chat with the agent. Two failures to expect: if the frontend is not built, startup stops with a build hint (`pnpm run build` in a checkout); if the browser cannot be opened, a credential-free diagnostic prints to stderr while the server keeps running — open the printed startup URL yourself.
 
 **Settings → Models** displays **DeepSeek**, using `DEEPSEEK_API_KEY`. The default is `deepseek-official` / `deepseek-flash` (DeepSeek-V41-Flash). The [DeepSeek plugin](../../llm/llm-deepseek/README.md#endpoint-and-wire-format) uses the Messages API.
 

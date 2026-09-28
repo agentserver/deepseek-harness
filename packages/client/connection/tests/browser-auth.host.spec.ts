@@ -3,8 +3,8 @@
 import { createHmac } from 'node:crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { CredentialProvider } from '@deepseek-ai/dsh-credentials'
-import { BrowserAuth } from '../src/browser-auth.ts'
-import type { ConnectionIndexRequest, ConnectionIndexResponse } from '../src/rpc.ts'
+import { BrowserAuth } from '@agentserver/dsh-authentication-token'
+import type { AuthenticationIndexRequest, AuthenticationIndexResponse } from '@agentserver/dsh-authentication'
 import { RecordCredentials } from './browser-credentials.ts'
 
 function signedCookie(store: RecordCredentials, name: string, payload: unknown): string {
@@ -31,7 +31,7 @@ interface ResponseState {
   body?: string
 }
 
-function response(): { value: ConnectionIndexResponse; state: ResponseState } {
+function response(): { value: AuthenticationIndexResponse; state: ResponseState } {
   const state: ResponseState = {}
   return {
     value: {
@@ -62,7 +62,7 @@ function createAuth(
 function request(url: string, authority = '127.0.0.1:3080', init?: {
   cookie?: string
   method?: string
-}): ConnectionIndexRequest {
+}): AuthenticationIndexRequest {
   return {
     method: init?.method ?? 'GET',
     url,

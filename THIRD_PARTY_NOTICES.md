@@ -32,6 +32,9 @@ External packages installed for runtime use or distributed inside the prebuilt b
 | Package | License |
 | --- | --- |
 | [`@agentclientprotocol/sdk`](https://github.com/agentclientprotocol/typescript-sdk) | Apache-2.0 |
+| [`@agentserver/dsh-authentication`](https://github.com/agentserver/dsh-authentication) | MIT |
+| [`@agentserver/dsh-authentication-oidc`](https://github.com/agentserver/dsh-authentication) | MIT |
+| [`@agentserver/dsh-authentication-token`](https://github.com/agentserver/dsh-authentication) | MIT |
 | [`@anthropic-ai/claude-agent-sdk`](https://github.com/anthropics/claude-agent-sdk-typescript) | SEE LICENSE IN README.md |
 | [`@anthropic-ai/sdk`](https://github.com/anthropics/anthropic-sdk-typescript) | MIT |
 | [`@babel/code-frame`](https://github.com/babel/babel) | MIT |

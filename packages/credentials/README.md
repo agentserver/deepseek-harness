@@ -1,5 +1,5 @@
 ---
-description: "Package map for the credential capability family: the credential-reference seam, the environment-and-file provider, the authorization flow registry, and how references keep secret values out of configuration."
+description: "Package map for the credential capability family: credential references, local storage, authorization flows, and pluggable browser authentication."
 kind: "package-group"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The `credentials/` group lets configuration name secrets instead of embedding their values. Use `credentials/` to store, look up, and remove credentials, `credentials-local/` for private on-machine storage with per-run environment overrides, and `authorization/` when obtaining a credential requires asking a human. Rotated stored values apply to the next model request, while `DEEPSEEK_API_KEY=… dsh` takes precedence for that run. Configuration files contain only credential names; local secret values remain readable only by the same OS user.
+The `credentials/` group lets configuration name secrets instead of embedding their values. Use `credentials/` to store, look up, and remove credentials, `credentials-local/` for private on-machine storage with per-run environment overrides, and `authorization/` when obtaining a credential requires asking a human. Browser authentication providers are maintained in the external [dsh-authentication repository](https://github.com/agentserver/dsh-authentication). Rotated stored values apply to the next model request, while `DEEPSEEK_API_KEY=… dsh` takes precedence for that run. Configuration files contain only credential names; local secret values remain readable only by the same OS user.
 
 ## Table of Contents
 
@@ -22,7 +22,7 @@ The `credentials/` group lets configuration name secrets instead of embedding th
 <a id="packages"></a>
 ## Packages
 
-Three packages provide the credential feature: one stores, looks up, and removes secrets at runtime while configuration only names them; the second is the default on-machine store; the third lets plugins obtain credentials that have to be asked for. Their READMEs cover day-to-day use; the subsystem reference owns the exhaustive contracts.
+The credential and browser-authentication capabilities are split into focused packages. Their READMEs cover day-to-day use; the subsystem reference owns the exhaustive contracts.
 
 | Package | Role | ctx key |
 |---|---|---|

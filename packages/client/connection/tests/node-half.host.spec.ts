@@ -18,6 +18,8 @@ import {
   type HostConnectionHandle,
   type PeerScope,
 } from '../src/index.ts'
+import AuthenticationService from '@agentserver/dsh-authentication'
+import TokenAuthentication from '@agentserver/dsh-authentication-token'
 import { DEFAULT_MAX_REQUEST_BODY_BYTES } from '../src/http-bridge.ts'
 import { provideBrowserCredentials } from './browser-credentials.ts'
 
@@ -90,6 +92,11 @@ function fakeResponse(): {
   return { response, state }
 }
 
+async function provideStaticAuthentication(ctx: Context): Promise<void> {
+  await ctx.plugin(AuthenticationService)
+  await ctx.plugin(TokenAuthentication, { cookieMaxAgeDays: 30 })
+}
+
 async function mounted(config?: ConnectionConfig): Promise<{
   ctx: Context
   routes: WebRoute[]
@@ -101,6 +108,8 @@ async function mounted(config?: ConnectionConfig): Promise<{
   const routes: WebRoute[] = []
   const upgrades: WebUpgradeRoute[] = []
   provideBrowserCredentials(ctx)
+  const authenticationFiber = await ctx.plugin(AuthenticationService)
+  const tokenFiber = await ctx.plugin(TokenAuthentication, { cookieMaxAgeDays: 30 })
   ctx.provide('webServer', fakeHttpServer(routes, upgrades) as WebServer)
   const fiber = ctx.plugin({ inject: [...inject], apply }, config)
   await fiber.await()
@@ -109,7 +118,7 @@ async function mounted(config?: ConnectionConfig): Promise<{
     routes,
     upgrades,
     connection: ctx.get('connection') as HostConnectionHandle,
-    dispose: () => fiber.dispose(),
+    dispose: async () => { await fiber.dispose(); await tokenFiber.dispose(); await authenticationFiber.dispose() },
   }
 }
 
@@ -127,6 +136,23 @@ function browserCookie(connection: HostConnectionHandle, authority: string): str
 }
 
 describe('connection node half', () => {
+  it('allows plugins to register and dispose authentication providers', async () => {
+    const { ctx, connection, dispose } = await mounted()
+    const replacement = {
+      id: 'test', priority: 100,
+      authorizeIndex: () => 'allow' as const,
+      isAuthenticated: () => true,
+      authenticatedUrl: (url: string) => `${url}?oidc=1`,
+      principal: () => ({ provider: 'test' }),
+    }
+    const registration = ctx.authentication.register(replacement)
+    try {
+      expect(connection.authenticatedUrl('http://localhost:3080')).toBe('http://localhost:3080?oidc=1')
+      registration()
+      expect(new URL(connection.authenticatedUrl('http://localhost:3080')).searchParams.has('token')).toBe(true)
+    } finally { await dispose() }
+  })
+
   it('runs request admission after authentication and removes it with its owning fiber', async () => {
     const { ctx, routes, connection, dispose } = await mounted()
     let admitted = 0
@@ -188,6 +214,7 @@ describe('connection node half', () => {
   it('provides the carrier-neutral service without a Web server', async () => {
     const ctx = new Context()
     provideBrowserCredentials(ctx)
+    await provideStaticAuthentication(ctx)
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     expect(ctx.get('connection')).toBeInstanceOf(Object)
@@ -245,6 +272,7 @@ describe('connection node half', () => {
     const upgrades: WebUpgradeRoute[] = []
     const ctx = new Context()
     provideBrowserCredentials(ctx)
+    await provideStaticAuthentication(ctx)
     ctx.provide('webServer', fakeHttpServer(routes, upgrades) as WebServer)
     const fiber = ctx.plugin({ inject: [...inject], apply }, { trustedHosts: ['harness.internal/path'] })
     await expect(fiber).rejects.toThrow(/not a bare host\[:port\] authority/)
@@ -349,6 +377,7 @@ describe('connection node half', () => {
     const ctx = new Context()
     const routes: WebRoute[] = []
     provideBrowserCredentials(ctx)
+    await provideStaticAuthentication(ctx)
     ctx.provide('webServer', fakeHttpServer(routes, []) as WebServer)
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
@@ -398,6 +427,7 @@ describe('connection node half', () => {
     const ctx = new Context()
     const routes: WebRoute[] = []
     provideBrowserCredentials(ctx)
+    await provideStaticAuthentication(ctx)
     ctx.provide('webServer', fakeHttpServer(routes, []) as WebServer)
     const fiber = ctx.plugin({ inject: [...inject], apply }, { trustedHosts: ['harness.example'] })
     await fiber.await()
@@ -523,6 +553,7 @@ describe('connection node half', () => {
     const ctx = new Context()
     const routes: WebRoute[] = []
     provideBrowserCredentials(ctx)
+    await provideStaticAuthentication(ctx)
     ctx.provide('webServer', fakeHttpServer(routes, []) as WebServer)
     const fiber = ctx.plugin({ inject: [...inject], apply }, { trustedHosts: ['harness.example'] })
     await fiber.await()

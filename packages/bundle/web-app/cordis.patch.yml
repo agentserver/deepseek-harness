@@ -222,6 +222,14 @@
     - id: modules
       name: '@deepseek-ai/dsh-client-modules'
 
+    - id: authentication
+      name: '@agentserver/dsh-authentication'
+
+    - id: authentication-token
+      name: '@agentserver/dsh-authentication-token'
+      config:
+        cookieMaxAgeDays: 30
+
     # Owns both ends of the web transport: node half binds the gateway to the
     # webserver under /api; browser half is the fetch/SSE client. Every API
     # request and upgrade passes the loopback plus trustedHosts policy; an
@@ -234,6 +242,18 @@
         # A deployment adding authorities keeps this expression and concatenates
         # its literals, for example: ['app.internal', ...ctx.webRuntime.trustedHosts].
         trustedHosts: !!js ctx.webRuntime.trustedHosts
+
+    # Optional deployment authentication. When an issuer is configured, this
+    # provider becomes the ordinary browser entry flow; explicit launch-token
+    # URLs remain available to the token provider.
+    - id: authentication-oidc
+      name: '@agentserver/dsh-authentication-oidc'
+      disabled: !!js process.env.DSH_OIDC_ISSUER === undefined
+      config:
+        issuer: !!js process.env.DSH_OIDC_ISSUER
+        clientId: !!js process.env.DSH_OIDC_CLIENT_ID
+        clientSecretRef: !!js process.env.DSH_OIDC_CLIENT_SECRET_REF
+        redirectUri: !!js process.env.DSH_OIDC_REDIRECT_URI
 
     # Raw Blob and ReadableStream uploads run independently of Connection's
     # RPC and generation service.

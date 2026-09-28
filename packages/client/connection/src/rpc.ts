@@ -115,6 +115,16 @@ export interface ConnectionIndexResponse {
   end(body?: string): unknown
 }
 
+/** Authentication registry consumed by the Host Connection carrier. */
+export interface ConnectionAuthentication {
+  /** Authenticate a frontend index request and own the response when refused. */
+  authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean
+  /** Check the current request's browser/session credentials. */
+  isAuthenticated(request: ConnectionTrustRequest): boolean
+  /** Build the URL a user opens to start authentication. */
+  authenticatedUrl(baseUrl: string): string
+}
+
 /** Outcome of admitting one request: the operator Peer it speaks for, or the status refusing it. */
 export type PeerAdmission =
   | { readonly peer: PeerScope }
@@ -230,9 +240,9 @@ export interface HostConnectionHandle {
   authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean
 
   /**
-   * Add the fresh process token to an ordinary Web application URL.
+   * Build the URL used to start the active browser authentication flow.
    * @param baseUrl - clean application URL whose authority and mount are preserved.
-   * @returns tokenized URL for initial login; a mount proxy strips its prefix before {@link authorizeIndex}.
+   * @returns URL for initial login; a mount proxy preserves its prefix before {@link authorizeIndex}.
    */
   authenticatedUrl(baseUrl: string): string
 }

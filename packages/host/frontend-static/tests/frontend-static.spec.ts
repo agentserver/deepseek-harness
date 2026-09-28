@@ -46,6 +46,8 @@ async function loadComposition(): Promise<Context> {
     '  config:',
     `    path: '${join(root, '.credentials.yaml')}'`,
     '    watch: false',
+    "- name: '@agentserver/dsh-authentication'",
+    "- name: '@agentserver/dsh-authentication-token'",
     "- name: '@deepseek-ai/dsh-host-webserver'",
     '  config:',
     "    host: '127.0.0.1'",
@@ -64,6 +66,8 @@ async function loadComposition(): Promise<Context> {
   context.loader.builtins.include = Include
   const modules = new Map<string, unknown>([
     ['@deepseek-ai/dsh-credentials-local', LocalCredentials],
+    ['@agentserver/dsh-authentication', (await import('@agentserver/dsh-authentication'))],
+    ['@agentserver/dsh-authentication-token', (await import('@agentserver/dsh-authentication-token'))],
     ['@deepseek-ai/dsh-host-webserver', HttpServer],
     ['@deepseek-ai/dsh-client-connection', Connection],
     ['@deepseek-ai/dsh-host-frontend-static', FrontendStatic],

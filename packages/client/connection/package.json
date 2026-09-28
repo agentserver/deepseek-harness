@@ -34,7 +34,6 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@deepseek-ai/dsh-credentials": "workspace:*",
     "@deepseek-ai/schemastery": "workspace:~",
     "zod": "^4.4.3"
   },
@@ -49,6 +48,8 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:~",
+    "@agentserver/dsh-authentication": "^0.1.0",
+    "@agentserver/dsh-authentication-token": "^0.1.1",
     "@deepseek-ai/dsh-attachment": "workspace:*",
     "@deepseek-ai/dsh-brand": "workspace:*",
     "@deepseek-ai/dsh-host-webserver": "workspace:*",
