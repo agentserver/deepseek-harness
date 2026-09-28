@@ -101,25 +101,28 @@ export class HostConnectionService extends Service implements HostConnectionHand
   }
 
   /** Apply the configured Host/Origin fence, then browser authentication. */
-  requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection {
+  async requestRejection(request: ConnectionTrustRequest): Promise<ConnectionRequestRejection> {
     if (!isTrustedApiRequest(request, this.trustedHosts)) return 403
-    return this.authentication.isAuthenticated(request) ? undefined : 401
+    const result = await this.authentication.authenticate(request)
+    return result.kind === 'authenticated' ? undefined : result.kind === 'rejected' ? result.status : 401
   }
 
   /** A request that passes the fence and authentication speaks for the operator. */
-  admit(request: ConnectionTrustRequest): PeerAdmission {
-    const rejection = this.requestRejection(request)
-    return rejection === undefined ? { peer: this.operator } : { rejection }
+  async admit(request: ConnectionTrustRequest): Promise<PeerAdmission> {
+    if (!isTrustedApiRequest(request, this.trustedHosts)) return { rejection: 403 }
+    const result = await this.authentication.authenticate(request)
+    if (result.kind !== 'authenticated') return { rejection: result.kind === 'rejected' ? result.status : 401 }
+    return { peer: this.operator, principal: result.principal }
   }
 
   /** Authenticate an index request through the active browser authenticator. */
-  authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean {
+  authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): Promise<boolean> {
     return this.authentication.authorizeIndex(request, response)
   }
 
   /** Build the URL used to start the active browser authentication flow. */
-  authenticatedUrl(baseUrl: string): string {
-    return this.authentication.authenticatedUrl(baseUrl)
+  authenticatedUrl(baseUrl: string, providerId?: string): string {
+    return this.authentication.authenticatedUrl(baseUrl, providerId)
   }
 
   /**
@@ -135,16 +138,16 @@ export class HostConnectionService extends Service implements HostConnectionHand
         const route = this.fetchRoutes.get(url.pathname)
         return route?.methods.has(method) === true ? route.requestBody : 'buffered'
       },
-      fetch: (request) => {
+      fetch: (request, principal) => {
         const pathname = new URL(request.url).pathname
         const route = this.fetchRoutes.get(pathname)
-        if (route?.methods.has(request.method) === true) return route.fetch(request)
+        if (route?.methods.has(request.method) === true) return route.fetch(request, principal)
         const endpoint = endpointFromPath(channel, pathname)
         const interceptor = this.interceptors.get(channel)
         if (endpoint === undefined || interceptor === undefined || !interceptor.matches(endpoint)) {
           return Promise.resolve(new Response('not found', { status: 404 }))
         }
-        return interceptor.fetchHandler.fetch(request)
+        return interceptor.fetchHandler.fetch(request, principal)
       },
     }
   }
@@ -179,13 +182,13 @@ export class HostConnectionService extends Service implements HostConnectionHand
       kind: 'prefix',
       path: channel,
       handler: async (req, res) => {
-        const admission = this.admit(req)
+        const admission = await this.admit(req)
         if ('rejection' in admission) {
           res.writeHead(admission.rejection)
           res.end(admission.rejection === 401 ? 'unauthorized' : 'forbidden')
           return
         }
-        await bridge(req, res, fetchHandler)
+        await bridge(req, res, fetchHandler, undefined, admission.principal)
       },
     }
     return owner.effect(
@@ -226,7 +229,7 @@ function rpcFetchHandler(
 ): ConnectionFetchHandler {
   return {
     requestBodyMode: () => 'buffered',
-    async fetch(request: Request): Promise<Response> {
+    async fetch(request: Request, principal?: import('@agentserver/dsh-authentication').AuthenticationPrincipal): Promise<Response> {
       const endpoint = endpointFromPath(channel, new URL(request.url).pathname)
       if (request.method !== 'POST' || endpoint === undefined) {
         return new Response('not found', { status: 404 })
@@ -258,7 +261,7 @@ function rpcFetchHandler(
       }
 
       try {
-        const result = await handler(endpoint, message.payload, request.signal, peer)
+        const result = await handler(endpoint, message.payload, request.signal, peer, principal)
         return fullResponse(message.rpcId, result)
       } catch (error) {
         return new Response(`handler failure: ${String(error)}`, { status: 500 })

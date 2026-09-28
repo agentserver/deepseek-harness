@@ -224,6 +224,8 @@
 
     - id: authentication
       name: '@agentserver/dsh-authentication'
+      config:
+        defaultProvider: !!js process.env.DSH_OIDC_ISSUER === undefined ? 'token' : 'oidc'
 
     - id: authentication-token
       name: '@agentserver/dsh-authentication-token'

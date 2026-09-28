@@ -93,6 +93,11 @@ class GoalService extends Service {
   }
 
   @Remote
+  principal(): unknown {
+    return this.ctx.requestPrincipal
+  }
+
+  @Remote
   maybe(value: string | null | undefined): string | null | undefined {
     this.calls.push('maybe')
     return value
@@ -184,10 +189,10 @@ async function serveRoute(route: WebRoute): Promise<{ readonly origin: string; c
 }
 
 /** Exchange a Connection launch token without mounting the frontend fallback. */
-function browserCookie(connection: HostConnectionHandle, origin: string): string {
+async function browserCookie(connection: HostConnectionHandle, origin: string): Promise<string> {
   const target = new URL(connection.authenticatedUrl(origin))
   let setCookie: string | undefined
-  connection.authorizeIndex({
+  await connection.authorizeIndex({
     method: 'GET',
     url: `${target.pathname}${target.search}`,
     headers: { host: target.host },
@@ -400,6 +405,21 @@ class InheritedMethodBase extends Service {
 class InheritedMethodService extends InheritedMethodBase {}
 
 describe('TypertGatewayService', () => {
+  it('carries the admitted principal into the Remote invocation Context', async () => {
+    const { ctx } = await setup()
+    await expect(ctx.typertGateway.invoke({
+      namespace: 'goals',
+      method: 'principal',
+      args: {},
+      principal: { provider: 'oidc', subject: 'user-1', issuer: 'https://issuer.example' },
+    })).resolves.toEqual({ provider: 'oidc', subject: 'user-1', issuer: 'https://issuer.example' })
+    await expect(ctx.typertGateway.invoke({
+      namespace: 'goals',
+      method: 'principal',
+      args: {},
+    })).resolves.toBeUndefined()
+  })
+
   it('invokes a strict direct method with schema decoding and a live lookup', async () => {
     const { ctx, service } = await setup()
     const agent = { id: 'agent-1' }
@@ -1332,7 +1352,7 @@ describe('TypertGatewayService', () => {
     let strictActive = true
     expect(routes).toHaveLength(1)
     const server = await serveRoute(routes[0]!)
-    const cookie = browserCookie(ctx.connection, server.origin)
+    const cookie = await browserCookie(ctx.connection, server.origin)
 
     try {
       const response = await fetch(`${server.origin}/api/goals/create`, {

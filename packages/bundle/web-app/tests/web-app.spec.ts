@@ -97,8 +97,8 @@ function provideConnection(ctx: Context): void {
       url.searchParams.set('token', 'test-token')
       return url.href
     },
-    authorizeIndex: () => true,
-    requestRejection: () => undefined,
+    authorizeIndex: () => Promise.resolve(true),
+    requestRejection: () => Promise.resolve(undefined),
     rpc: {},
   } as never)
 }

@@ -4,6 +4,7 @@ import type { IncomingMessage } from 'node:http'
 import type { Duplex } from 'node:stream'
 import { Deque } from '@deepseek-ai/dsh-deque'
 import { RemoteError, remoteErrorOf, type PeerScope } from '@deepseek-ai/dsh-typert-protocol'
+import type { AuthenticationPrincipal } from '@agentserver/dsh-authentication'
 import WebSocket, { WebSocketServer, type RawData } from 'ws'
 import {
   parseRemoteStreamClientMessage,
@@ -24,6 +25,7 @@ export type RemoteStreamOpener = (
   uplink: AsyncIterable<unknown>,
   peer: PeerScope,
   control: AbortController,
+  principal?: AuthenticationPrincipal,
 ) => Promise<AsyncIterable<unknown>>
 
 /** The opener one socket uses: its Peer is fixed at upgrade time. */
@@ -32,6 +34,7 @@ type BoundStreamOpener = (
   payload: unknown,
   uplink: AsyncIterable<unknown>,
   control: AbortController,
+  principal?: AuthenticationPrincipal,
 ) => Promise<AsyncIterable<unknown>>
 
 /** Convert an invocation or carrier failure to a stable wire value. */
@@ -67,8 +70,9 @@ export class RemoteStreamMuxServer {
    * @param socket - carrier socket transferred to the WebSocket server.
    * @param head - bytes already read after the HTTP upgrade headers.
    * @param peer - Peer the upgrade was admitted as.
+   * @param principal - identity admitted by Connection for the socket.
    */
-  handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer, peer: PeerScope): void {
+  handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer, peer: PeerScope, principal?: AuthenticationPrincipal): void {
     this.server.handleUpgrade(req, socket, head, (websocket) => {
       const release = bindPeer(websocket, peer)
       if (release === undefined) return
@@ -76,7 +80,7 @@ export class RemoteStreamMuxServer {
       websocket.on('pong', () => { this.missedHeartbeats.set(websocket, 0) })
       this.startHeartbeat()
       const bound: BoundStreamOpener = (endpoint, payload, uplink, control) =>
-        this.open(endpoint, payload, uplink, peer, control)
+        this.open(endpoint, payload, uplink, peer, control, principal)
       const connection = new RemoteStreamMuxConnection(websocket, bound, this.failure, this.streamInboxBytes)
       const done = connection.run()
       this.connections.add(done)

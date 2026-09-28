@@ -5,6 +5,7 @@
 
 import type { IncomingMessage } from 'node:http'
 import { Readable } from 'node:stream'
+import type { AuthenticationPrincipal } from '@agentserver/dsh-authentication'
 import type { ConnectionFetchHandler } from './rpc.ts'
 
 /** Default carrier cap for all HTTP RPC bodies: sized for the default
@@ -37,6 +38,7 @@ export async function bridge(
   res: BridgeServerResponse,
   apiHandler: ConnectionFetchHandler,
   maxRequestBodyBytes = DEFAULT_MAX_REQUEST_BODY_BYTES,
+  principal?: AuthenticationPrincipal,
 ): Promise<void> {
   const abort = new AbortController()
   // Client-disconnect detection MUST hang off the response, not the request:
@@ -91,7 +93,7 @@ export async function bridge(
       duplex: 'half',
     } as RequestInit & { duplex: 'half' })
   }
-  const response = await apiHandler.fetch(request)
+  const response = await apiHandler.fetch(request, principal)
   const requestUnread = bodyMode === 'streaming' && !req.readableEnded
   const responseHeaders = Object.fromEntries(response.headers.entries())
   res.writeHead(response.status, requestUnread ? { ...responseHeaders, connection: 'close' } : responseHeaders)

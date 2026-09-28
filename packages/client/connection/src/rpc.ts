@@ -1,6 +1,13 @@
 /** Generic unary RPC contracts shared by the Host and Client Connection halves. */
 
 import type { Branded } from '@deepseek-ai/dsh-brand'
+import type {
+  AuthenticationIndexRequest,
+  AuthenticationIndexResponse,
+  AuthenticationPrincipal,
+  AuthenticationRequest,
+  AuthenticationResult,
+} from '@agentserver/dsh-authentication'
 import type { PeerScope } from '@deepseek-ai/dsh-typert-protocol'
 
 /** Correlation id minted by a caller and echoed by the Connection response. */
@@ -95,50 +102,46 @@ export interface ServerResponse {
 export type RpcMessage = ClientRequest | ServerResponse
 
 /** HTTP request facts consumed by browser trust and authentication. */
-export interface ConnectionTrustRequest {
-  /** Request headers supplied by either the Fetch or node:http representation. */
-  readonly headers: Headers | Readonly<Record<string, string | readonly string[] | undefined>>
-}
+/** Request facts passed from a transport carrier to authentication providers. */
+export type ConnectionTrustRequest = AuthenticationRequest
 
 /** HTTP status returned before dispatch, or undefined when the request may proceed. */
 export type ConnectionRequestRejection = 401 | 403 | undefined
 
 /** Root/index request facts used by the browser-token exchange. */
-export interface ConnectionIndexRequest extends ConnectionTrustRequest {
-  readonly method?: string | undefined
-  readonly url?: string | undefined
-}
+/** Frontend entry request accepted by the authentication registry. */
+export type ConnectionIndexRequest = AuthenticationIndexRequest
 
 /** Root/index response operations owned by the browser-token exchange. */
-export interface ConnectionIndexResponse {
-  writeHead(status: number, headers?: Readonly<Record<string, string>>): unknown
-  end(body?: string): unknown
-}
+/** Response writer owned by the selected authentication entry flow. */
+export type ConnectionIndexResponse = AuthenticationIndexResponse
 
 /** Authentication registry consumed by the Host Connection carrier. */
 export interface ConnectionAuthentication {
+  /** Authenticate one request and return its principal when accepted. */
+  authenticate(request: ConnectionTrustRequest): Promise<AuthenticationResult>
   /** Authenticate a frontend index request and own the response when refused. */
-  authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean
-  /** Check the current request's browser/session credentials. */
-  isAuthenticated(request: ConnectionTrustRequest): boolean
+  authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): Promise<boolean>
   /** Build the URL a user opens to start authentication. */
-  authenticatedUrl(baseUrl: string): string
+  authenticatedUrl(baseUrl: string, providerId?: string): string
 }
 
-/** Outcome of admitting one request: the operator Peer it speaks for, or the status refusing it. */
+/** Outcome of admitting one request: the operator Peer and identity, or the status refusing it. */
 export type PeerAdmission =
-  | { readonly peer: PeerScope }
+  | { readonly peer: PeerScope; readonly principal: AuthenticationPrincipal }
   | { readonly rejection: 401 | 403 }
 
 /**
  * Handler invoked after Connection has decoded the transport envelope.
  * `peer` is the Peer the request was admitted as: the operator.
+ * `principal` is the provider-neutral identity accepted for this request.
  */
 export type ConnectionRpcHandler = (
   endpoint: string,
   payload: unknown,
   signal: AbortSignal,
   peer: PeerScope,
+  principal?: AuthenticationPrincipal,
 ) => Promise<ConnectionRpcHandlerResult>
 
 /** Synchronous ownership test for one endpoint on a shared RPC channel. */
@@ -159,7 +162,8 @@ export interface ConnectionFetchRoute {
   /** Buffered requests obey the configured JSON cap; streaming requests arrive with backpressure and no aggregate cap. */
   readonly requestBody: ConnectionRequestBodyMode
   /** Handle one request after the physical carrier has applied its trust and authentication policy. */
-  readonly fetch: (request: Request) => Promise<Response>
+  /** Handle one admitted request; the principal is absent only for direct in-process calls. */
+  readonly fetch: (request: Request, principal?: AuthenticationPrincipal) => Promise<Response>
 }
 
 /** Host registry for exact Fetch routes that cannot use JSON Remote invocation. */
@@ -221,15 +225,15 @@ export interface HostConnectionHandle {
    * @param request - request headers from the HTTP or upgrade request.
    * @returns rejection status, or undefined when the route may accept the request.
    */
-  requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection
+  requestRejection(request: ConnectionTrustRequest): Promise<ConnectionRequestRejection>
 
   /**
    * Admit one request: it passes {@link requestRejection} and speaks for the
    * operator, or it is refused with that status.
    * @param request - request headers from the HTTP or upgrade request.
-   * @returns the operator Peer, or the rejection status.
+   * @returns the operator Peer and authenticated principal, or the rejection status.
    */
-  admit(request: ConnectionTrustRequest): PeerAdmission
+  admit(request: ConnectionTrustRequest): Promise<PeerAdmission>
 
   /**
    * Authenticate one frontend index request, owning a token redirect or 401.
@@ -237,14 +241,15 @@ export interface HostConnectionHandle {
    * @param response - response owned when the result is false.
    * @returns true only when the frontend may serve index.html.
    */
-  authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean
+  authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): Promise<boolean>
 
   /**
    * Build the URL used to start the active browser authentication flow.
    * @param baseUrl - clean application URL whose authority and mount are preserved.
+   * @param providerId - optional explicit provider selection.
    * @returns URL for initial login; a mount proxy preserves its prefix before {@link authorizeIndex}.
    */
-  authenticatedUrl(baseUrl: string): string
+  authenticatedUrl(baseUrl: string, providerId?: string): string
 }
 
 /** Transport-independent Fetch handler used by HTTP and worker carriers. */
@@ -259,9 +264,17 @@ export interface ConnectionFetchHandler {
   /**
    * Dispatch one already-authenticated request.
    * @param request - Fetch request below the shared channel.
+   * @param principal - identity admitted for the request, when supplied by a Host carrier.
    * @returns the registered response or a 404 response.
    */
-  fetch(request: Request): Promise<Response>
+  fetch(request: Request, principal?: AuthenticationPrincipal): Promise<Response>
+}
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /** Principal admitted for the current Host request, or undefined for in-process calls. */
+    readonly requestPrincipal: AuthenticationPrincipal | undefined
+  }
 }
 
 /** Client caller for logical RPC channels carried by the current transport. */

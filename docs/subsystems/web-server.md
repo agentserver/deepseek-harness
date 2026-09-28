@@ -80,15 +80,15 @@ createSharedFetchHandler(channel: '/api'): ConnectionFetchHandler
  * @param request - request headers from the HTTP or upgrade request.
  * @returns rejection status, or undefined when the route may accept the request.
  */
-requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection
+requestRejection(request: ConnectionTrustRequest): Promise<ConnectionRequestRejection>
 
 /**
  * Admit one request: it passes {@link requestRejection} and speaks for the
  * operator, or it is refused with that status.
  * @param request - request headers from the HTTP or upgrade request.
- * @returns the operator Peer, or the rejection status.
+ * @returns the operator Peer and authenticated principal, or the rejection status.
  */
-admit(request: ConnectionTrustRequest): PeerAdmission
+admit(request: ConnectionTrustRequest): Promise<PeerAdmission>
 
 /**
  * Authenticate one frontend index request, owning a token redirect or 401.
@@ -96,14 +96,15 @@ admit(request: ConnectionTrustRequest): PeerAdmission
  * @param response - response owned when the result is false.
  * @returns true only when the frontend may serve index.html.
  */
-authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean
+authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): Promise<boolean>
 
 /**
- * Add the fresh process token to an ordinary Web application URL.
+ * Build the URL used to start the active browser authentication flow.
  * @param baseUrl - clean application URL whose authority and mount are preserved.
- * @returns tokenized URL for initial login; a mount proxy strips its prefix before {@link authorizeIndex}.
+ * @param providerId - optional explicit provider selection.
+ * @returns URL for initial login; a mount proxy preserves its prefix before {@link authorizeIndex}.
  */
-authenticatedUrl(baseUrl: string): string
+authenticatedUrl(baseUrl: string, providerId?: string): string
 ```
 
 Source: [`packages/client/connection/src/rpc.ts`](../../packages/client/connection/src/rpc.ts)

@@ -281,6 +281,8 @@ interface InvokeRemoteRequest {
   readonly uplink?: AsyncIterable<unknown>
   /** Peer the call speaks for; absent means an in-process carrier, answered as the operator. */
   readonly peer?: PeerScope
+  /** Principal admitted by the Connection carrier; absent for in-process calls. */
+  readonly principal?: AuthenticationPrincipal
   /** Carrier or direct-caller cancellation injected only into cancellation-aware methods. */
   readonly signal?: AbortSignal
 }

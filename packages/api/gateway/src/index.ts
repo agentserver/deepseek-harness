@@ -16,6 +16,7 @@ import { Deque } from '@deepseek-ai/dsh-deque'
 import type { WebUpgradeRoute } from '@deepseek-ai/dsh-host-webserver'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import type {} from '@deepseek-ai/dsh-cmdline'
+import type { AuthenticationPrincipal } from '@agentserver/dsh-authentication'
 import z from '@deepseek-ai/schemastery'
 export type { TypertGatewayFaultDetails } from './remote-error-codes.ts'
 import {
@@ -206,8 +207,8 @@ export class TypertGatewayService extends Service implements TypertGateway {
 
   /** Carrier adapter shared by the WebSocket mux and local Host transports. */
   readonly wireStream: TypertGatewayWireStream = {
-    open: (endpoint, payload, uplink, peer, signal) =>
-      this.openWireStream(endpoint, payload, uplink, peer, signal, new AbortController()),
+    open: (endpoint, payload, uplink, peer, signal, principal) =>
+      this.openWireStream(endpoint, payload, uplink, peer, signal, new AbortController(), principal),
     failure: error => rpcError(error),
   }
 
@@ -234,14 +235,14 @@ export class TypertGatewayService extends Service implements TypertGateway {
       connectionCtx.connection.rpc.intercept(
         '/api',
         endpoint => this.claimsEndpoint(endpoint),
-        (endpoint, payload, signal, peer) => this.dispatchRpc(endpoint, payload, signal, peer),
+        (endpoint, payload, signal, peer, principal) => this.dispatchRpc(endpoint, payload, signal, peer, principal),
       )
     })
     ctx.inject(['connection', 'webServer'], (webCtx) => {
       const listen = (): void => {
         const mux = new RemoteStreamMuxServer(
-          (endpoint, payload, uplink, peer, control) =>
-            this.openWireStream(endpoint, payload, uplink, peer, control.signal, control),
+          (endpoint, payload, uplink, peer, control, principal) =>
+            this.openWireStream(endpoint, payload, uplink, peer, control.signal, control, principal),
           this.wireStream.failure,
           resolved.websocketHeartbeatIntervalMs,
           resolved.streamInboxBytes,
@@ -250,13 +251,13 @@ export class TypertGatewayService extends Service implements TypertGateway {
           yield () => mux.close()
           const route: WebUpgradeRoute = {
             path: REMOTE_STREAM_MUX_PATH,
-            handler: (req, socket, head) => {
-              const admission = webCtx.connection.admit(req)
+            handler: async (req, socket, head) => {
+              const admission = await webCtx.connection.admit(req)
               if ('rejection' in admission) {
                 rejectRemoteStreamUpgrade(socket, admission.rejection)
                 return
               }
-              mux.handleUpgrade(req, socket, head, admission.peer)
+              mux.handleUpgrade(req, socket, head, admission.peer, admission.principal)
             },
           }
           yield webCtx.webServer.registerUpgrade(route)
@@ -426,6 +427,7 @@ export class TypertGatewayService extends Service implements TypertGateway {
     payload: unknown,
     signal: AbortSignal,
     peer: PeerScope,
+    principal?: AuthenticationPrincipal,
   ): Promise<ConnectionRpcResult> {
     if (endpoint === REMOTE_EVENT_RESULT_ENDPOINT) {
       try {
@@ -440,7 +442,7 @@ export class TypertGatewayService extends Service implements TypertGateway {
         return rpcFailure(error)
       }
     }
-    return this.invokeRpc(endpoint, payload, signal, peer)
+    return this.invokeRpc(endpoint, payload, signal, peer, principal)
   }
 
   private async openWireStream(
@@ -450,13 +452,14 @@ export class TypertGatewayService extends Service implements TypertGateway {
     peer: PeerScope | undefined,
     signal: AbortSignal,
     control: AbortController,
+    principal?: AuthenticationPrincipal,
   ): Promise<AsyncIterable<unknown>> {
     if (endpoint === REMOTE_EVENT_STREAM_ENDPOINT) {
       // A Gateway-owned stream reads no uplink: releasing it now keeps its items out of the bounded inbox.
       releaseUplink(uplink)
       return this.openRemoteEvents(payload, signal)
     }
-    return this.openStream({ ...remoteRequest(endpoint, payload, signal, peer), uplink }, control)
+    return this.openStream({ ...remoteRequest(endpoint, payload, signal, peer, principal), uplink }, control)
   }
 
   /**
@@ -679,10 +682,11 @@ export class TypertGatewayService extends Service implements TypertGateway {
     payload: unknown,
     signal: AbortSignal,
     peer: PeerScope,
+    principal?: AuthenticationPrincipal,
   ): Promise<ConnectionRpcResult> {
     try {
       const prepared = await this.prepareInvocation(
-        remoteRequest(endpoint, payload, signal, peer),
+        remoteRequest(endpoint, payload, signal, peer, principal),
         new AbortController(),
       )
       const value = await this.invokePrepared(prepared)
@@ -733,7 +737,7 @@ export class TypertGatewayService extends Service implements TypertGateway {
     // Cordis rebinds `this.ctx` to the accessing Context, so `this.ctx.invocation`
     // is this call and nothing travels through the parameter list. The view
     // resolves the Service the plain read above already found.
-    const callReceiver = receiverContext.extend({ invocation }).get(descriptor.service) as object
+    const callReceiver = receiverContext.extend({ invocation, requestPrincipal: request.principal }).get(descriptor.service) as object
     const implementation = descriptor.implementation ?? descriptor.method
     const method: unknown = Reflect.get(callReceiver, implementation)
     if (typeof method !== 'function') {
@@ -1129,6 +1133,7 @@ function remoteRequest(
   payload: unknown,
   signal: AbortSignal,
   peer?: PeerScope,
+  principal?: AuthenticationPrincipal,
 ): InvokeRemoteRequest {
   const segments = endpoint.split('/')
   if (segments.length !== 2 || segments[0] === '' || segments[1] === '') {
@@ -1143,7 +1148,14 @@ function remoteRequest(
     || !isPlainObject(payload.args)) {
     throw new Error('Remote payload must contain exactly one plain-object args field')
   }
-  return { namespace, method, args: payload.args, signal, ...(peer === undefined ? {} : { peer }) }
+  return {
+    namespace,
+    method,
+    args: payload.args,
+    signal,
+    ...(peer === undefined ? {} : { peer }),
+    ...(principal === undefined ? {} : { principal }),
+  }
 }
 
 /**

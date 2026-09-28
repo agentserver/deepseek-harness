@@ -141,13 +141,14 @@ export async function apply(ctx: Context, config?: ConnectionConfig): Promise<vo
       kind: 'prefix',
       path: API_PATH,
       handler: async (req, res) => {
-        const admission = connection.admit(req)
+        const admission = await connection.admit(req)
         if ('rejection' in admission) {
           res.writeHead(admission.rejection)
           res.end(admission.rejection === 401 ? 'unauthorized' : 'forbidden')
           return
         }
-        await webCtx.waterfall('connection/request', req, res, () => bridge(req, res, fetchHandler, maxRequestBodyBytes))
+        await webCtx.waterfall('connection/request', req, res, () =>
+          bridge(req, res, fetchHandler, maxRequestBodyBytes, admission.principal))
       },
     }
     webCtx.effect(() => webCtx.webServer.register(route), 'client-connection: /api route')

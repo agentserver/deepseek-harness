@@ -765,28 +765,28 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'Fetch handler for trusted, authenticated requests.',
       },
       {
-        signature: 'requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection',
+        signature: 'requestRejection(request: ConnectionTrustRequest): Promise<ConnectionRequestRejection>',
         description: 'Apply Connection\'s Host/Origin checks and browser authentication to another Web route.',
         parameters: [{ name: 'request', description: 'request headers from the HTTP or upgrade request.' }],
         returns: 'rejection status, or undefined when the route may accept the request.',
       },
       {
-        signature: 'admit(request: ConnectionTrustRequest): PeerAdmission',
+        signature: 'admit(request: ConnectionTrustRequest): Promise<PeerAdmission>',
         description: 'Admit one request: it passes requestRejection and speaks for the operator, or it is refused with that status.',
         parameters: [{ name: 'request', description: 'request headers from the HTTP or upgrade request.' }],
-        returns: 'the operator Peer, or the rejection status.',
+        returns: 'the operator Peer and authenticated principal, or the rejection status.',
       },
       {
-        signature: 'authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean',
+        signature: 'authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): Promise<boolean>',
         description: 'Authenticate one frontend index request, owning a token redirect or 401.',
         parameters: [{ name: 'request', description: 'root or configured-index HTTP request.' }, { name: 'response', description: 'response owned when the result is false.' }],
         returns: 'true only when the frontend may serve index.html.',
       },
       {
-        signature: 'authenticatedUrl(baseUrl: string): string',
-        description: 'Add the fresh process token to an ordinary Web application URL.',
-        parameters: [{ name: 'baseUrl', description: 'clean application URL whose authority and mount are preserved.' }],
-        returns: 'tokenized URL for initial login; a mount proxy strips its prefix before {@link authorizeIndex}.',
+        signature: 'authenticatedUrl(baseUrl: string, providerId?: string): string',
+        description: 'Build the URL used to start the active browser authentication flow.',
+        parameters: [{ name: 'baseUrl', description: 'clean application URL whose authority and mount are preserved.' }, { name: 'providerId', description: 'optional explicit provider selection.' }],
+        returns: 'URL for initial login; a mount proxy preserves its prefix before {@link authorizeIndex}.',
       },
     ],
   },
@@ -3391,7 +3391,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Resolve strict generated definitions or conservative SRC markers against current Cordis Services and Typert providers.',
     methods: [
       {
-        signature: 'readonly wireStream: TypertGatewayWireStream = { open: (endpoint, payload, uplink, peer, signal) => this.openWireStream(endpoint, payload, uplink, peer, signal, new AbortController()), failure: error => rpcError(error), }',
+        signature: 'readonly wireStream: TypertGatewayWireStream = { open: (endpoint, payload, uplink, peer, signal, principal) => this.openWireStream(endpoint, payload, uplink, peer, signal, new AbortController(), principal), failure: error => rpcError(error), }',
         description: 'Carrier adapter shared by the WebSocket mux and local Host transports.',
         parameters: [],
       },
@@ -4854,7 +4854,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ConnectionFetchHandler',
-    declaration: 'export interface ConnectionFetchHandler {\n    requestBodyMode(request: {\n        readonly method: string;\n        readonly url: URL;\n    }): ConnectionRequestBodyMode;\n    fetch(request: Request): Promise<Response>;\n}',
+    declaration: 'export interface ConnectionFetchHandler {\n    requestBodyMode(request: {\n        readonly method: string;\n        readonly url: URL;\n    }): ConnectionRequestBodyMode;\n    fetch(request: Request, principal?: AuthenticationPrincipal): Promise<Response>;\n}',
   },
   {
     name: 'ConnectionFetchMethod',
@@ -4862,15 +4862,15 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ConnectionFetchRoute',
-    declaration: 'export interface ConnectionFetchRoute {\n    readonly path: string;\n    readonly methods: readonly ConnectionFetchMethod[];\n    readonly requestBody: ConnectionRequestBodyMode;\n    readonly fetch: (request: Request) => Promise<Response>;\n}',
+    declaration: 'export interface ConnectionFetchRoute {\n    readonly path: string;\n    readonly methods: readonly ConnectionFetchMethod[];\n    readonly requestBody: ConnectionRequestBodyMode;\n    readonly fetch: (request: Request, principal?: AuthenticationPrincipal) => Promise<Response>;\n}',
   },
   {
     name: 'ConnectionIndexRequest',
-    declaration: 'export interface ConnectionIndexRequest extends ConnectionTrustRequest {\n    readonly method?: string | undefined;\n    readonly url?: string | undefined;\n}',
+    declaration: 'export type ConnectionIndexRequest = AuthenticationIndexRequest;',
   },
   {
     name: 'ConnectionIndexResponse',
-    declaration: 'export interface ConnectionIndexResponse {\n    writeHead(status: number, headers?: Readonly<Record<string, string>>): unknown;\n    end(body?: string): unknown;\n}',
+    declaration: 'export type ConnectionIndexResponse = AuthenticationIndexResponse;',
   },
   {
     name: 'ConnectionRequestBodyMode',
@@ -4894,7 +4894,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ConnectionRpcHandler',
-    declaration: 'export type ConnectionRpcHandler = (endpoint: string, payload: unknown, signal: AbortSignal, peer: PeerScope) => Promise<ConnectionRpcHandlerResult>;',
+    declaration: 'export type ConnectionRpcHandler = (endpoint: string, payload: unknown, signal: AbortSignal, peer: PeerScope, principal?: AuthenticationPrincipal) => Promise<ConnectionRpcHandlerResult>;',
   },
   {
     name: 'ConnectionRpcHandlerResult',
@@ -4906,7 +4906,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ConnectionTrustRequest',
-    declaration: 'export interface ConnectionTrustRequest {\n    readonly headers: Headers | Readonly<Record<string, string | readonly string[] | undefined>>;\n}',
+    declaration: 'export type ConnectionTrustRequest = AuthenticationRequest;',
   },
   {
     name: 'ContentBlockMap',
@@ -5502,7 +5502,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'InvokeRemoteRequest',
-    declaration: 'export interface InvokeRemoteRequest {\n    readonly namespace: string;\n    readonly method: string;\n    readonly args: Readonly<Record<string, unknown>>;\n    readonly uplink?: AsyncIterable<unknown>;\n    readonly peer?: PeerScope;\n    readonly signal?: AbortSignal;\n}',
+    declaration: 'export interface InvokeRemoteRequest {\n    readonly namespace: string;\n    readonly method: string;\n    readonly args: Readonly<Record<string, unknown>>;\n    readonly uplink?: AsyncIterable<unknown>;\n    readonly peer?: PeerScope;\n    readonly principal?: AuthenticationPrincipal;\n    readonly signal?: AbortSignal;\n}',
   },
   {
     name: 'JobAppendOptions',
@@ -6014,7 +6014,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'PeerAdmission',
-    declaration: 'export type PeerAdmission = {\n    readonly peer: PeerScope;\n} | {\n    readonly rejection: 401 | 403;\n};',
+    declaration: 'export type PeerAdmission = {\n    readonly peer: PeerScope;\n    readonly principal: AuthenticationPrincipal;\n} | {\n    readonly rejection: 401 | 403;\n};',
   },
   {
     name: 'PeerId',
@@ -7974,7 +7974,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'TypertGatewayWireStream',
-    declaration: 'export interface TypertGatewayWireStream {\n    readonly open: (endpoint: string, payload: unknown, uplink: AsyncIterable<unknown>, peer: PeerScope | undefined, signal: AbortSignal) => Promise<AsyncIterable<unknown>>;\n    readonly failure: (error: unknown) => {\n        readonly code: string;\n        readonly message: string;\n        readonly details: object;\n    };\n}',
+    declaration: 'export interface TypertGatewayWireStream {\n    readonly open: (endpoint: string, payload: unknown, uplink: AsyncIterable<unknown>, peer: PeerScope | undefined, signal: AbortSignal, principal?: AuthenticationPrincipal) => Promise<AsyncIterable<unknown>>;\n    readonly failure: (error: unknown) => {\n        readonly code: string;\n        readonly message: string;\n        readonly details: object;\n    };\n}',
   },
   {
     name: 'TypertMemberModel',

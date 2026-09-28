@@ -25,7 +25,7 @@
     "@deepseek-ai/dsh-app-boot": "workspace:*",
     "@deepseek-ai/dsh-atomic-write": "workspace:*",
     "@deepseek-ai/dsh-attachment": "workspace:*",
-    "@agentserver/dsh-authentication": "^0.1.0",
+    "@agentserver/dsh-authentication": "^0.2.2",
     "@deepseek-ai/dsh-authorization": "workspace:*",
     "@deepseek-ai/dsh-base": "workspace:*",
     "@deepseek-ai/dsh-bash-local": "workspace:*",

@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import WebSocket, { type RawData } from 'ws'
 import { Context } from '@deepseek-ai/cordis'
 import { apply as applyConnection, inject as connectionInject } from '@deepseek-ai/dsh-client-connection'
+import AuthenticationService from '@agentserver/dsh-authentication'
+import TokenAuthentication from '@agentserver/dsh-authentication-token'
 import WebServer from '@deepseek-ai/dsh-host-webserver'
 import { Remote, TypertRemoteService, type RemoteStream } from '@deepseek-ai/dsh-typert-protocol'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
@@ -44,7 +46,7 @@ describe('the echo stream on each carrier', () => {
   it('echoes uplink frames through the WebSocket carrier', async () => {
     const ctx = await setup(true)
     const socket = new WebSocket(`ws://127.0.0.1:${String(ctx.webServer.port)}/api/remote.mux`, {
-      headers: { cookie: browserCookie(ctx) },
+      headers: { cookie: await browserCookie(ctx) },
     })
     await once(socket, 'open')
     const frames: unknown[] = []
@@ -71,6 +73,8 @@ async function setup(transport: boolean): Promise<Context> {
   if (transport) {
     await ctx.plugin(WebServer, { host: '127.0.0.1', port: 0 })
     provideBrowserCredentials(ctx)
+    await ctx.plugin(AuthenticationService)
+    await ctx.plugin(TokenAuthentication, { cookieMaxAgeDays: 30 })
   }
   await ctx.plugin(TypertRegistry)
   await ctx.plugin(TypertGatewayService, {})
