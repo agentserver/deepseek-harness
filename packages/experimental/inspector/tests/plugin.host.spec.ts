@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { Context } from '@deepseek-ai/cordis'
 import type { IndexInjection, WebServer, WebUpgradeRoute } from '@deepseek-ai/dsh-host-webserver'
 import { HostConnectionService } from '@deepseek-ai/dsh-client-connection'
-import type { BrowserAuth } from '@deepseek-ai/dsh-client-connection/src/browser-auth.ts'
+import type { ConnectionAuthentication } from '@deepseek-ai/dsh-client-connection'
 import open from 'open'
 import WebSocket, { type RawData } from 'ws'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -38,9 +38,15 @@ describe('experimental Inspector Host plugin', () => {
     const registerUpgrade = vi.fn<(_route: WebUpgradeRoute) => () => void>(() => releaseUpgrade)
     const routes: Pick<WebServer, 'register' | 'registerUpgrade'> = { register: registerRoute, registerUpgrade }
     let authenticated = false
-    const auth: Pick<BrowserAuth, 'isAuthenticated'> = { isAuthenticated: () => authenticated }
+    const auth: ConnectionAuthentication = {
+      authenticate: () => authenticated
+        ? { kind: 'authenticated', principal: { provider: 'fixture' } }
+        : { kind: 'anonymous' },
+      authorizeIndex: async () => false,
+      authenticatedUrl: (baseUrl) => baseUrl,
+    }
     context.provide('webServer', routes as WebServer)
-    const connection = new HostConnectionService(context, [], auth as BrowserAuth)
+    const connection = new HostConnectionService(context, [], auth)
     const fiber = context.plugin(
       { name, inject: [...inject], Config, apply },
       { port: 0, captureFetch: false },
@@ -123,7 +129,7 @@ describe('experimental Inspector Host plugin', () => {
     context = new Context()
     const routes: Pick<WebServer, 'register' | 'registerUpgrade'> = { register: () => () => {}, registerUpgrade: () => () => {} }
     context.provide('webServer', routes as WebServer)
-    new HostConnectionService(context, [], {} as BrowserAuth)
+    new HostConnectionService(context, [], {} as ConnectionAuthentication)
     context.provide('inspector', {
       publish: () => undefined,
       cordis: { getTree: () => Promise.reject(new Error('unused test service')) },
@@ -145,7 +151,7 @@ describe('experimental Inspector Host plugin', () => {
     const routes: Pick<WebServer, 'register' | 'registerUpgrade'> = { register: () => () => {}, registerUpgrade: () => () => {} }
     context.provide('webServer', routes as WebServer)
     context.provide('cmdlineArgs', { get: () => ['--inspect'] })
-    const connection = new HostConnectionService(context, [], {} as BrowserAuth)
+    const connection = new HostConnectionService(context, [], {} as ConnectionAuthentication)
     vi.mocked(open).mockRejectedValueOnce(new Error('Chrome unavailable'))
     const fiber = context.plugin({ name, inject: [...inject], Config, apply }, { port: 0, captureFetch: false })
     await fiber.await()
