@@ -39,7 +39,7 @@ describe('experimental Inspector Host plugin', () => {
     const routes: Pick<WebServer, 'register' | 'registerUpgrade'> = { register: registerRoute, registerUpgrade }
     let authenticated = false
     const auth: ConnectionAuthentication = {
-      authenticate: () => authenticated
+      authenticate: async () => authenticated
         ? { kind: 'authenticated', principal: { provider: 'fixture' } }
         : { kind: 'anonymous' },
       authorizeIndex: async () => false,
