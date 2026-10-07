@@ -57,6 +57,8 @@ Expand **Customized settings → Model options** to edit each model. Both provid
 
 ### First-run dialogs
 
+Deployments may set `previewNotice: false` to omit the versioned notice without recording a user acknowledgement. This leaves the Models page and credential onboarding unchanged.
+
 After the versioned notice step completes, the DeepSeek step projects first-run readiness from the same joined snapshot. ANY provider the user can already reach ends it without rendering; only a user with none is asked for the official DeepSeek key. Configure later completes only this coordinator pass, and an absent adapter, inactive route, failed join, read-only deployment, or unusable capability completes the step without rendering — Models remains the diagnostic surface.
 
 ### Extension slots

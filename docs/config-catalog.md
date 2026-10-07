@@ -611,6 +611,8 @@ export type OnboardingProcess = 'compact' | 'standard' | 'detailed'
 ```ts config-catalog
 /** Onboarding options after schema defaults are applied. */
 export interface Config {
+  /** Whether this deployment presents the product preview notice. */
+  previewNotice: boolean
   /** Offer the browser API-key step when no native shell owns credential onboarding. */
   credentialOnboarding: boolean
 }
